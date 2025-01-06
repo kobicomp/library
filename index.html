@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+   <title>ניהול ספרייה</title>
+   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+   <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+   <style>
+       @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;600&display=swap');
+       body {
+           font-family: 'Rubik', Arial, sans-serif;
+           background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+           touch-action: manipulation;
+       }
+       .book-card {
+           transition: all 0.3s ease;
+           box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+       }
+       .book-card:hover {
+           transform: translateY(-10px);
+           box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+       }
+       .gradient-border {
+           border: 2px solid transparent;
+           border-image: linear-gradient(to right, #4ecdc4, #45b7d1);
+           border-image-slice: 1;
+       }
+       @media (max-width: 640px) {
+           #searchSection {
+               grid-template-columns: repeat(1, 1fr);
+           }
+           #bookGrid {
+               grid-template-columns: repeat(1, 1fr);
+           }
+       }
+   </style>
+</head>
+<body class="min-h-screen flex flex-col">
+   <!-- Password Modal -->
+   <div id="passwordModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
+       <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 text-center gradient-border">
+           <h2 class="text-2xl font-bold mb-6 text-gray-800">כניסת מנהל</h2>
+           <input type="password" id="passwordInput"
+               class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+               placeholder="הזן סיסמה">
+           <div class="flex space-x-4">
+               <button onclick="checkPassword()"
+                   class="flex-grow bg-gradient-to-r from-green-400 to-blue-500 text-white py-3 rounded-lg hover:opacity-90 transition">
+                   אישור
+               </button>
+               <button onclick="closePasswordModal()"
+                   class="flex-grow bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 transition">
+                   ביטול
+               </button>
+           </div>
+       </div>
+   </div>
+
+   <!-- Main Container -->
+   <div class="container mx-auto px-4 py-8 flex-grow">
+       <!-- Search Section -->
+       <div class="bg-white rounded-2xl shadow-2xl p-6">
+           <div class="flex flex-col sm:flex-row items-center mb-8">
+               <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 flex-grow mb-4 sm:mb-0" id="libTitle">
+                   ספריית בית הכנסת אש הבנים
+               </h1>
+               <div class="text-gray-500 text-sm bg-gray-100 px-4 py-2 rounded-full" id="lastSerialNumber">
+                   המספר הסידורי האחרון: 0
+               </div>
+           </div>
+
+           <!-- Search Inputs -->
+           <div id="searchSection" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+               <!-- דינמי -->
+           </div>
+
+           <!-- Book Grid -->
+           <div id="bookGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
+       </div>
+   </div>
+
+   <!-- Add Book Section -->
+   <div id="addBookSection" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4 overflow-y-auto">
+       <div class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto gradient-border">
+           <h2 class="text-3xl font-bold mb-8 text-center text-gray-800">הוספת ספר חדש</h2>
+           <form id="addBookForm" class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+               <div>
+                   <label class="block text-gray-700 text-sm font-bold mb-2">מספר סידורי</label>
+                   <input type="text" name="serialNumber" id="serialNumberInput"
+                       class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg bg-gray-100"
+                       placeholder="מספר סידורי" readonly>
+               </div>
+
+               <div>
+                   <label class="block text-gray-700 text-sm font-bold mb-2">שם הספר*</label>
+                   <input type="text" name="bookName" required
+                       class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg"
+                       placeholder="שם הספר">
+               </div>
+
+               <div>
+                   <label class="block text-gray-700 text-sm font-bold mb-2">מחבר*</label>
+                   <input type="text" name="author" required
+                       class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg"
+                       placeholder="מחבר">
+               </div>
+
+               <div>
+                   <label class="block text-gray-700 text-sm font-bold mb-2">מחלקה*</label>
+                   <input type="text" name="department" required
+                       class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg"
+                       placeholder="מחלקה">
+               </div>
+
+               <div>
+                   <label class="block text-gray-700 text-sm font-bold mb-2">חדר*</label>
+                   <input type="text" name="room" required
+                       class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg"
+                       placeholder="חדר">
+               </div>
+
+               <div>
+                   <label class="block text-gray-700 text-sm font-bold mb-2">עמודה*</label>
+                   <input type="text" name="column" required
+                       class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg"
+                       placeholder="עמודה">
+               </div>
+
+               <div>
+                   <label class="block text-gray-700 text-sm font-bold mb-2">מדף*</label>
+                   <input type="text" name="shelf" required
+                       class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg"
+                       placeholder="מדף">
+               </div>
+
+               <div>
+                   <label class="block text-gray-700 text-sm font-bold mb-2">תגיות</label>
+                   <input type="text" name="tags"
+                       class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg"
+                       placeholder="תגיות (מופרדות בפסיק)">
+               </div>
+
+               <div class="sm:col-span-2">
+                   <label class="block text-gray-700 text-sm font-bold mb-2">תיאור</label>
+                   <textarea name="description"
+                       class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg h-32"
+                       placeholder="תיאור הספר"></textarea>
+               </div>
+
+               <div class="sm:col-span-2 flex space-x-4">
+                   <button type="button" onclick="saveAndAddNewBook()"
+                       class="flex-grow bg-gradient-to-r from-green-400 to-blue-500 text-white py-3 rounded-lg hover:opacity-90 transition">
+                       שמור והוסף ספר נוסף
+                   </button>
+                   <button type="button" onclick="saveAndCloseAddBookSection()"
+                       class="flex-grow bg-blue-200 text-blue-800 py-3 rounded-lg hover:bg-blue-300 transition">
+                       שמור וצא
+                   </button>
+                   <button type="button" onclick="cancelAddBookSection()"
+                       class="flex-grow bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 transition">
+                       בטל
+                   </button>
+                   <button onclick="showCsvImportModal()"
+    class="flex-grow bg-blue-500 text-white py-3 rounded-lg hover:opacity-90 transition">
+    ייבוא מ-CSV
+</button>
+               </div>
+           </form>
+       </div>
+   </div>
+   <div id="csvImportModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
+       <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6">
+           <h2 class="text-2xl font-bold mb-4 text-center">ייבוא ספרים מקובץ CSV</h2>
+           <input type="file" id="csvFileInput" accept=".csv"
+               class="w-full mb-4 p-2 border rounded">
+           <div id="csvPreview" class="max-h-64 overflow-y-auto mb-4"></div>
+           <div class="flex space-x-4">
+               <a href="#" id="templateDownloadLink"
+                  class="flex-grow text-center bg-blue-100 text-blue-800 py-2 rounded">
+                   הורד תבנית
+               </a>
+               <button onclick="importCsvBooks()"
+                   class="flex-grow bg-green-500 text-white py-2 rounded">
+                   ייבוא ספרים
+               </button>
+           </div>
+       </div>
+   </div>
+   <script>
+       const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR4AjdFMLe2QE_WPZ90-G_kVU2msm3DbWFG_htvZ9WmrzGoxrXpG5CHp7fN8TCs6m9-JRvEK9Wy9z28/pub?output=csv';
+       const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSebdzTpSObm37oJJ4f4vMgW_SD_p9TwT5Mak8c0ZzRRRly-LQ/formResponse';
+
+       let books = [];
+       let departments = new Set();
+       let tags = new Set();
+       let globalLastSerialNumber = 0;
+       let submitInProgress = false;
+
+       // Retrieve last serial number from localStorage
+       function getLastSerialNumber() {
+           const storedSerialNumber = localStorage.getItem('lastLibrarySerialNumber');
+           return storedSerialNumber ? parseInt(storedSerialNumber) : 0;
+       }
+
+       // Save last serial number to localStorage
+       function saveLastSerialNumber(number) {
+           localStorage.setItem('lastLibrarySerialNumber', number.toString());
+           globalLastSerialNumber = number;
+       }
+
+       // Key combination for admin access
+       document.addEventListener('keydown', function(event) {
+           if ((event.altKey || event.metaKey) && event.key.toLowerCase() === 'm') {
+               event.preventDefault();
+               showPasswordModal();
+           }
+       });
+
+       // Fallback click method for title
+       document.getElementById('libTitle').addEventListener('click', function(event) {
+           event.preventDefault();
+           event.stopPropagation();
+           showPasswordModal();
+       });
+
+       // Validate form before submission
+       function validateForm() {
+           const form = document.getElementById('addBookForm');
+           const requiredFields = [
+               'bookName', 'author', 'department', 'room',
+               'column', 'shelf'
+           ];
+
+           let missingFields = [];
+
+           requiredFields.forEach(fieldName => {
+               const field = form.elements[fieldName];
+               if (!field.value.trim()) {
+                   missingFields.push(field.placeholder);
+                   field.classList.add('border-red-500');
+               } else {
+                   field.classList.remove('border-red-500');
+               }
+           });
+
+           if (missingFields.length > 0) {
+               alert(`אנא מלא את השדות הבאים:\n${missingFields.join('\n')}`);
+               return false;
+           }
+
+           return true;
+       }
+
+       // Save book and add new book
+       function saveAndAddNewBook() {
+           if (validateForm()) {
+               submitBookForm(false);
+           }
+       }
+
+       // Save book and close section
+       function saveAndCloseAddBookSection() {
+           if (validateForm()) {
+               submitBookForm(true);
+           }
+       }
+
+       // Cancel adding book
+       function cancelAddBookSection() {
+       // Ask for confirmation before cancelling
+       const addBookSection = document.getElementById('addBookSection');
+       const form = document.getElementById('addBookForm');
+
+       // Check if any fields are filled
+       const filledFields = Array.from(form.elements).some(
+           element => element.name !== 'serialNumber' &&
+                      element.name !== 'tags' &&
+                      element.name !== 'description' &&
+                      element.value.trim() !== ''
+       );
+
+       if (!filledFields || confirm('האם אתה בטוח שברצונך לבטל? כל הנתונים שהוזנו יאבדו.')) {
+           addBookSection.classList.remove('flex');
+           addBookSection.classList.add('hidden');
+       }
+   }
+
+       // Submit book form helper function
+       function submitBookForm(shouldClose) {
+           if (submitInProgress) return;
+
+           submitInProgress = true;
+           const form = document.getElementById('addBookForm');
+           const formData = new FormData(form);
+
+           // Increment and save serial number
+           const serialNumber = getLastSerialNumber() + 1;
+           saveLastSerialNumber(serialNumber);
+
+           const entries = {
+               'entry.781364026': serialNumber,
+               'entry.637389545': formData.get('bookName'),
+               'entry.439941440': formData.get('author'),
+               'entry.1276222906': formData.get('department'),
+               'entry.1936339075': formData.get('room'),
+               'entry.1432391974': formData.get('column'),
+               'entry.1356729358': formData.get('shelf'),
+               'entry.1691560509': formData.get('tags') || '',
+               'entry.654342369': formData.get('description') || ''
+           };
+
+           // Use fetch for hidden form submission
+           const formBody = new URLSearchParams();
+           Object.entries(entries).forEach(([key, value]) => {
+               formBody.append(key, value);
+           });
+
+           fetch(FORM_URL, {
+               method: 'POST',
+               mode: 'no-cors', // Prevents CORS errors
+               body: formBody
+           })
+           .then(() => {
+               // Refresh books
+               setTimeout(fetchBooks, 1000);
+
+               // Show success message
+               alert('הספר נוסף בהצלחה!');
+
+               // Reset form and prepare for next book
+               if (shouldClose) {
+                   closeAddBookSection();
+               } else {
+                   // Prepare for next book
+                   form.reset();
+                   document.getElementById('serialNumberInput').value = serialNumber + 1;
+               }
+
+               submitInProgress = false;
+           })
+           .catch(error => {
+               console.error('Error:', error);
+               alert('אירעה שגיאה. אנא נסה שוב.');
+               submitInProgress = false;
+           });
+       }
+       // Populate filter dropdowns
+               function populateFilters() {
+                   // Reset sets
+                   departments.clear();
+                   tags.clear();
+
+                   // Collect unique departments and tags
+                   books.forEach(book => {
+                       if (book['מחלקה']) departments.add(book['מחלקה']);
+
+                       if (book['תגיות']) {
+                           book['תגיות'].split(',').forEach(tag => {
+                               if (tag.trim()) tags.add(tag.trim());
+                           });
+                       }
+                   });
+
+                   // Update search section with dynamic search inputs
+                   const searchSection = document.getElementById('searchSection');
+                   searchSection.innerHTML = `
+                       <input type="text" id="serialNumberSearch"
+                           placeholder="חיפוש לפי מספר סידורי"
+                           class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           oninput="filterBooks()">
+
+                       <input type="text" id="bookNameSearch"
+                           placeholder="חיפוש לפי שם הספר"
+                           class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           oninput="filterBooks()">
+
+                       <input type="text" id="authorSearch"
+                           placeholder="חיפוש לפי מחבר"
+                           class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           oninput="filterBooks()">
+
+                       <select id="departmentSearch"
+                           class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           onchange="filterBooks()">
+                           <option value="">כל המחלקות</option>
+                           ${Array.from(departments).map(dept =>
+                               `<option value="${dept}">${dept}</option>`
+                           ).join('')}
+                       </select>
+
+                       <input type="text" id="roomSearch"
+                           placeholder="חיפוש לפי חדר"
+                           class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           oninput="filterBooks()">
+
+                       <input type="text" id="columnSearch"
+                           placeholder="חיפוש לפי עמודה"
+                           class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           oninput="filterBooks()">
+
+                       <input type="text" id="shelfSearch"
+                           placeholder="חיפוש לפי מדף"
+                           class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           oninput="filterBooks()">
+
+                       <select id="tagsSearch"
+                           class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           onchange="filterBooks()">
+                           <option value="">כל התגיות</option>
+                           ${Array.from(tags).map(tag =>
+                               `<option value="${tag}">${tag}</option>`
+                           ).join('')}
+                       </select>
+
+                       <input type="text" id="freeTextSearch"
+                           placeholder="חיפוש טקסט חופשי"
+                           class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           oninput="filterBooks()">
+                   `;
+               }
+
+               // Comprehensive search function
+               function filterBooks() {
+                   const searchFields = {
+                       serialNumber: document.getElementById('serialNumberSearch').value.toLowerCase().trim(),
+                       bookName: document.getElementById('bookNameSearch').value.toLowerCase().trim(),
+                       author: document.getElementById('authorSearch').value.toLowerCase().trim(),
+                       department: document.getElementById('departmentSearch').value.toLowerCase().trim(),
+                       room: document.getElementById('roomSearch').value.toLowerCase().trim(),
+                       column: document.getElementById('columnSearch').value.toLowerCase().trim(),
+                       shelf: document.getElementById('shelfSearch').value.toLowerCase().trim(),
+                       tags: document.getElementById('tagsSearch').value.toLowerCase().trim(),
+                       freeText: document.getElementById('freeTextSearch').value.toLowerCase().trim()
+                   };
+
+                   const filteredBooks = books.filter(book => {
+                       return (
+                           (searchFields.serialNumber === '' ||
+                            book['מספר סידורי'].toString().toLowerCase().includes(searchFields.serialNumber)) &&
+
+                           (searchFields.bookName === '' ||
+                            book['שם הספר'].toLowerCase().includes(searchFields.bookName)) &&
+
+                           (searchFields.author === '' ||
+                            book['המחבר'].toLowerCase().includes(searchFields.author)) &&
+
+                           (searchFields.department === '' ||
+                            book['מחלקה'].toLowerCase().includes(searchFields.department)) &&
+
+                           (searchFields.room === '' ||
+                            book['חדר'].toLowerCase().includes(searchFields.room)) &&
+
+                           (searchFields.column === '' ||
+                            book['עמודה'].toLowerCase().includes(searchFields.column)) &&
+
+                           (searchFields.shelf === '' ||
+                            book['מדף'].toLowerCase().includes(searchFields.shelf)) &&
+
+                           (searchFields.tags === '' ||
+                            book['תגיות'].toLowerCase().includes(searchFields.tags)) &&
+
+                           (searchFields.freeText === '' ||
+                            Object.values(book).some(value =>
+                                value.toString().toLowerCase().includes(searchFields.freeText)
+                            ))
+                       );
+                   });
+
+                   renderBooks(filteredBooks);
+               }
+
+               // Fetch and parse books
+               function fetchBooks() {
+     Papa.parse(SHEET_URL, {
+         download: true,
+         header: true,
+         complete: function(results) {
+             // Remove empty rows and invalid entries
+             books = results.data.filter(book =>
+                 book['שם הספר'] && book['שם הספר'].trim() !== ''
+             );
+
+             // Find the last serial number
+             const serialNumbers = books
+                 .map(book => parseInt(book['מספר סידורי'] || 0))
+                 .filter(num => !isNaN(num) && num > 0);
+
+             const lastNumber = serialNumbers.length > 0
+                 ? Math.max(...serialNumbers)
+                 : 0;
+
+             // Save and display the last serial number
+             saveLastSerialNumber(lastNumber);
+
+             document.getElementById('lastSerialNumber').textContent =
+                 `המספר הסידורי האחרון: ${lastNumber}`;
+
+             // Render books and populate filters
+             renderBooks(books);
+             populateFilters();
+         },
+         error: function(error) {
+             console.error('Error parsing CSV:', error);
+             alert('אירעה שגיאה בטעינת הספרים');
+         }
+     });
+ }
+
+
+               // Render books in the grid
+               function renderBooks(booksToRender) {
+                   const bookGrid = document.getElementById('bookGrid');
+                   bookGrid.innerHTML = '';
+
+                   booksToRender.forEach(book => {
+                       const bookCard = document.createElement('div');
+                       bookCard.classList.add('book-card', 'bg-white', 'p-6', 'rounded-lg', 'shadow-md', 'space-y-2');
+                       bookCard.innerHTML = `
+                           <h3 class="text-xl font-bold text-gray-800">${book['שם הספר']}</h3>
+                           <p class="text-gray-600"><strong>מספר סידורי:</strong> ${book['מספר סידורי'] || 'לא מצוין'}</p>
+                           <p class="text-gray-600"><strong>מחבר:</strong> ${book['המחבר']}</p>
+                           <p class="text-gray-600"><strong>מחלקה:</strong> ${book['מחלקה']}</p>
+                           <p class="text-gray-600"><strong>מיקום:</strong> חדר ${book['חדר']}, עמודה ${book['עמודה']}, מדף ${book['מדף']}</p>
+                           <p class="text-gray-600"><strong>תגיות:</strong> ${book['תגיות'] || 'אין תגיות'}</p>
+                           <p class="text-gray-500 text-sm">${book['תיאור'] || 'ללא תיאור'}</p>
+                       `;
+                       bookGrid.appendChild(bookCard);
+                   });
+
+                   // Update results count
+                   const resultsCount = document.createElement('div');
+                   resultsCount.classList.add('col-span-full', 'text-center', 'text-gray-600', 'mt-4');
+                   resultsCount.textContent = `נמצאו ${booksToRender.length} ספרים`;
+                   bookGrid.appendChild(resultsCount);
+               }
+
+               // Show add book section
+               function showAddBookSection() {
+     const addBookSection = document.getElementById('addBookSection');
+     const serialNumberInput = document.getElementById('serialNumberInput');
+     const form = document.getElementById('addBookForm');
+
+     // Generate next serial number
+     const nextSerialNumber = getLastSerialNumber() + 1;
+     serialNumberInput.value = nextSerialNumber;
+
+     // Reset form
+     form.reset();
+     serialNumberInput.value = nextSerialNumber;
+
+     addBookSection.classList.remove('hidden');
+     addBookSection.classList.add('flex');
+ }
+
+               // Close add book section
+               function closeAddBookSection() {
+                   const addBookSection = document.getElementById('addBookSection');
+                   addBookSection.classList.remove('flex');
+                   addBookSection.classList.add('hidden');
+               }
+
+               // Password check function
+               function checkPassword() {
+                   const passwordInput = document.getElementById('passwordInput');
+                   const passwordModal = document.getElementById('passwordModal');
+
+                   if (passwordInput.value === '2468') {
+                       passwordModal.style.display = 'none';
+                       passwordModal.classList.add('hidden');
+                       showAddBookSection();
+                   } else {
+                       alert('סיסמה שגויה');
+                       passwordInput.value = '';
+                   }
+               }
+
+               // Show password modal
+               function showPasswordModal() {
+                   const passwordModal = document.getElementById('passwordModal');
+                   passwordModal.style.display = 'flex';
+                   passwordModal.classList.remove('hidden');
+
+                   const passwordInput = document.getElementById('passwordInput');
+                   passwordInput.focus();
+               }
+
+               // Close password modal
+               function closePasswordModal() {
+                   const passwordModal = document.getElementById('passwordModal');
+                   passwordModal.style.display = 'none';
+                   passwordModal.classList.add('hidden');
+               }
+               function showCsvImportModal() {
+                   const csvImportModal = document.getElementById('csvImportModal');
+                   csvImportModal.classList.remove('hidden');
+                   csvImportModal.classList.add('flex');
+
+                   // הגדרת קישור להורדת תבנית
+                   const templateDownloadLink = document.getElementById('templateDownloadLink');
+                   templateDownloadLink.href = generateCsvTemplate();
+               }
+
+               function generateCsvTemplate() {
+                   // יצירת תבנית CSV לדוגמה
+                   const templateData = [
+                       ['שם הספר', 'מחבר', 'מחלקה', 'חדר', 'עמודה', 'מדף', 'תגיות', 'תיאור'],
+                       ['דוגמה 1', 'מחבר 1', 'מחלקה A', '101', '1', 'עליון', 'מדע', 'ספר מרתק'],
+                       ['דוגמה 2', 'מחבר 2', 'מחלקה B', '102', '2', 'תחתון', 'היסטוריה', 'סקירה מעמיקה']
+                   ];
+
+                   const csvContent = templateData.map(e => e.join(",")).join("\n");
+                   const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+                   return URL.createObjectURL(blob);
+               }
+
+               function previewCsvFile(event) {
+                   const file = event.target.files[0];
+                   const preview = document.getElementById('csvPreview');
+                   preview.innerHTML = '';
+
+                   Papa.parse(file, {
+                       complete: function(results) {
+                           const previewTable = document.createElement('table');
+                           previewTable.className = 'w-full border';
+
+                           // הצגת כותרות
+                           const headerRow = document.createElement('tr');
+                           results.data[0].forEach(header => {
+                               const th = document.createElement('th');
+                               th.textContent = header;
+                               th.className = 'border p-2 bg-gray-100';
+                               headerRow.appendChild(th);
+                           });
+                           previewTable.appendChild(headerRow);
+
+                           // הצגת 5 השורות הראשונות
+                           results.data.slice(1, 6).forEach(row => {
+                               const tr = document.createElement('tr');
+                               row.forEach(cell => {
+                                   const td = document.createElement('td');
+                                   td.textContent = cell;
+                                   td.className = 'border p-2';
+                                   tr.appendChild(td);
+                               });
+                               previewTable.appendChild(tr);
+                           });
+
+                           preview.appendChild(previewTable);
+                       }
+                   });
+               }
+
+               function importCsvBooks() {
+                   const fileInput = document.getElementById('csvFileInput');
+                   const file = fileInput.files[0];
+
+                   if (!file) {
+                       alert('אנא בחר קובץ CSV');
+                       return;
+                   }
+
+                   Papa.parse(file, {
+                       header: true,
+                       complete: function(results) {
+                           let lastSerialNumber = getLastSerialNumber();
+
+                           results.data.forEach(book => {
+                               // דילוג על שורות ריקות
+                               if (!book['שם הספר'] || book['שם הספר'].trim() === '') return;
+
+                               // הגדלת מספר סידורי
+                               lastSerialNumber++;
+
+                               // הכנת נתונים לשליחה
+                               const entries = {
+                                   'entry.781364026': lastSerialNumber,
+                                   'entry.637389545': book['שם הספר'] || '',
+                                   'entry.439941440': book['מחבר'] || '',
+                                   'entry.1276222906': book['מחלקה'] || '',
+                                   'entry.1936339075': book['חדר'] || '',
+                                   'entry.1432391974': book['עמודה'] || '',
+                                   'entry.1356729358': book['מדף'] || '',
+                                   'entry.1691560509': book['תגיות'] || '',
+                                   'entry.654342369': book['תיאור'] || ''
+                               };
+
+                               // שליחת כל ספר לטופס
+                               const formBody = new URLSearchParams();
+                               Object.entries(entries).forEach(([key, value]) => {
+                                   formBody.append(key, value);
+                               });
+
+                               fetch(FORM_URL, {
+                                   method: 'POST',
+                                   mode: 'no-cors',
+                                   body: formBody
+                               });
+                           });
+
+                           // שמירת המספר הסידורי האחרון
+                           saveLastSerialNumber(lastSerialNumber);
+
+                           // רענון הספרים לאחר זמן קצר
+                           setTimeout(fetchBooks, 2000);
+
+                           // סגירת המודל
+                           const csvImportModal = document.getElementById('csvImportModal');
+                           csvImportModal.classList.remove('flex');
+                           csvImportModal.classList.add('hidden');
+
+                           alert(`יובאו ${results.data.length} ספרים בהצלחה`);
+                       }
+                   });
+               }
+               // Initialize book fetch on page load
+               fetchBooks();
+               document.getElementById('csvFileInput').addEventListener('change', previewCsvFile);
+           </script>
+       </body>
+       </html>
